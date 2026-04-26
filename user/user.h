@@ -1,6 +1,13 @@
 #define SBRK_ERROR ((char *)-1)
 
 struct stat;
+struct mlfqinfo {
+  int level;            // current queue level
+  int ticks[4];         // total ticks consumed at each level
+  int times_scheduled;  // number of times the process has been scheduled
+  int total_syscalls;   // total system calls made (from PA1) [cite: 74]
+};
+struct vmstats;
 
 // system calls
 int fork(void);
@@ -47,3 +54,17 @@ void printf(const char*, ...) __attribute__ ((format (printf, 1, 2)));
 // umalloc.c
 void* malloc(uint);
 void free(void*);
+
+// usercalls.c
+int hello(void);
+int getpid2(void);
+int getppid(void);
+int getnumchild(void);
+int getsyscount(void);
+int getchildsyscount(int pid);
+int getlevel(void);
+int getmlfqinfo(int pid, struct mlfqinfo *info);
+int getvmstats(int pid, struct vmstats *info);
+int setdisksched(int policy);
+int setraidlevel(int level);
+int faildisk(int disk);

@@ -28,11 +28,12 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o
+  $K/virtio_disk.o \
+  $K/usercalls.o
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
-#TOOLPREFIX = 
+#TOOLPREFIX =
 
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX
@@ -87,7 +88,7 @@ endif
 LDFLAGS = -z max-page-size=4096
 
 $K/kernel: $(OBJS) $K/kernel.ld
-	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
+	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS)
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
 
@@ -145,13 +146,56 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
+	$U/_test_A\
+	$U/_test_B\
+	$U/_test_C\
+	$U/_test_edge\
+	$U/_stress_test\
+	$U/_test_basic\
+	$U/_test_children\
+	$U/_tfs\
+	$U/_test_syscount\
+	$U/_test_mlfq\
+	$U/_test_sc\
+	$U/_test_boost\
+	$U/_starvation\
+	$U/_mixed_test\
+	$U/_PA2_1\
+	$U/_PA2_2\
+	$U/_PA2_3\
+	$U/_testswap\
+	$U/_testcorrect\
+	$U/_testclasswar\
+	$U/_testedge\
+	$U/_testsched\
+	$U/_testraid\
+	$U/_test_integrity\
+	$U/_test_perf\
+	$U/_test_raid5\
+	$U/_test_recon\
+	$U/_test_prio\
+	$U/_test_prio_inv\
+	$U/_test_boundary\
+	$U/_test_wamp\
+	$U/_test_correct\
+	$U/_test_exit_swap\
+	$U/_PA3_1\
+	$U/_PA3_2\
+	$U/_PA3_3\
+	$U/_PA3_4\
+	$U/_PA4_A\
+	$U/_PA4_B\
+	$U/_PA4_C\
+	$U/_PA4_D\
+	$U/_PA4_E\
+	$U/_PA4_F\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
 
 -include kernel/*.d user/*.d
 
-clean: 
+clean:
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*/*.o */*.d */*.asm */*.sym \
 	$K/kernel fs.img \

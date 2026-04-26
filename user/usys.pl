@@ -20,7 +20,7 @@ sub entry {
     print " ecall\n";
     print " ret\n";
 }
-	
+
 entry("fork");
 entry("exit");
 entry("wait");
@@ -42,3 +42,15 @@ entry("getpid");
 entry("sbrk");
 entry("pause");
 entry("uptime");
+entry("hello");
+entry("getpid2");
+entry("getppid");
+entry("getnumchild");
+entry("getsyscount");
+entry("getchildsyscount");
+entry("getlevel");
+entry("getmlfqinfo");
+entry("getvmstats");
+entry("setdisksched");
+entry("setraidlevel");
+entry("faildisk");

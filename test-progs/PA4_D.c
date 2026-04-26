@@ -1,5 +1,5 @@
 // Merged: PA4_11 + PA4_12 + PA4_13
-// Tests: disk scheduling basics, syscall sanity (setdisksched/getdiskstats), FCFS vs SSTF latency
+// Tests: disk scheduling basics, syscall sanity (setdisksched/getvmstats), FCFS vs SSTF latency
 
 #include "kernel/types.h"
 #include "kernel/stat.h"
@@ -25,8 +25,8 @@ static void trigger_swap_workload_11(void) {
             printf("  [Error] malloc failed at page %d\n", i);
             exit(1);
         }
-        // Write to the first byte of the page. 
-        // This forces the kernel to actually allocate a physical frame 
+        // Write to the first byte of the page.
+        // This forces the kernel to actually allocate a physical frame
         // and triggers the page eviction logic when RAM runs out.
         pages[i][0] = 'A' + (i % 26);
     }
@@ -51,7 +51,7 @@ static void
 test_pa4_11(void)
 {
     printf("=== Starting PA4 Disk & Swap Test ===\n");
-    struct diskstats diskstat = {0, 0, 0};
+    struct vmstats diskstat = {0, 0, 0};
     // Test 1: FCFS Scheduling
     printf("\n--- Setting Policy: FCFS ---\n");
     if(setdisksched(FCFS_11) < 0) {
@@ -59,11 +59,11 @@ test_pa4_11(void)
     } else {
         trigger_swap_workload_11();
     }
-    getdiskstats(getpid2(),&diskstat);
+    getvmstats(getpid2(),&diskstat);
     printf("\nDisk Stats (FCFS): Reads=%d, Writes=%d, Avg Latency=%d.%d ticks\n",
-           diskstat.reads, diskstat.writes, diskstat.avg_latency / 100, diskstat.avg_latency % 100);
+           diskstat.reads, diskstat.writes, diskstat.average_latency / 100, diskstat.average_latency % 100);
 
-    diskstat.reads = diskstat.writes = diskstat.avg_latency = 0; // reset stats
+    diskstat.reads = diskstat.writes = diskstat.average_latency = 0; // reset stats
     // Test 2: SSTF Scheduling
     printf("\n--- Setting Policy: SSTF ---\n");
     if(setdisksched(SSTF_11) < 0) {
@@ -71,9 +71,9 @@ test_pa4_11(void)
     } else {
         trigger_swap_workload_11();
     }
-    getdiskstats(getpid2(),&diskstat);
+    getvmstats(getpid2(),&diskstat);
     printf("\nDisk Stats (SSTF): Reads=%d, Writes=%d, Avg Latency=%d.%d ticks\n",
-           diskstat.reads, diskstat.writes, diskstat.avg_latency / 100, diskstat.avg_latency % 100);
+           diskstat.reads, diskstat.writes, diskstat.average_latency / 100, diskstat.average_latency % 100);
 
     printf("\n=== Tests Completed ===\n");
 }
@@ -114,7 +114,7 @@ static void
 test_pa4_12(void)
 {
     printf("=== Test l: Basic Disk Scheduling System Call Sanity ===\n");
-    struct diskstats st;
+    struct vmstats st;
     int pid = getpid2();
 
     // -----------------------------------------------------------------------
@@ -146,12 +146,12 @@ test_pa4_12(void)
     force_swap_io_12();
 
     memset(&st, 0, sizeof(st));
-    if (getdiskstats(pid, &st) != 0) {
-        printf("  FAIL: getdiskstats returned error\n");
+    if (getvmstats(pid, &st) != 0) {
+        printf("  FAIL: getvmstats returned error\n");
         return;
     }
-    printf("  FCFS stats -> reads=%d writes=%d avg_latency=%d.%d ticks\n",
-           st.reads, st.writes, st.avg_latency / 100, st.avg_latency % 100);
+    printf("  FCFS stats -> reads=%d writes=%d average_latency=%d.%d ticks\n",
+           st.reads, st.writes, st.average_latency / 100, st.average_latency % 100);
 
     if (st.writes > 0)
         printf("  PASS: disk_writes > 0 (swap-out happened)\n");
@@ -163,10 +163,10 @@ test_pa4_12(void)
     else
         printf("  FAIL: disk_reads == 0\n");
 
-    if (st.avg_latency > 0)
-        printf("  PASS: avg_latency > 0\n");
+    if (st.average_latency > 0)
+        printf("  PASS: average_latency > 0\n");
     else
-        printf("  FAIL: avg_latency == 0 — latency model not running\n");
+        printf("  FAIL: average_latency == 0 — latency model not running\n");
 
     // -----------------------------------------------------------------------
     printf("[3] setdisksched(SSTF)\n");
@@ -176,22 +176,22 @@ test_pa4_12(void)
         printf("  FAIL: SSTF rejected\n");
 
     // -----------------------------------------------------------------------
-    printf("[4] getdiskstats: invalid PID handling\n");
-    struct diskstats bad;
+    printf("[4] getvmstats: invalid PID handling\n");
+    struct vmstats bad;
     memset(&bad, 0, sizeof(bad));
-    if (getdiskstats(-1, &bad) < 0)
+    if (getvmstats(-1, &bad) < 0)
         printf("  PASS: PID -1 rejected\n");
     else
         printf("  FAIL: PID -1 accepted\n");
 
-    if (getdiskstats(99999, &bad) < 0)
+    if (getvmstats(99999, &bad) < 0)
         printf("  PASS: PID 99999 rejected\n");
     else
         printf("  FAIL: PID 99999 accepted\n");
 
     // -----------------------------------------------------------------------
     printf("[5] stats are non-negative\n");
-    if (st.reads >= 0 && st.writes >= 0 && st.avg_latency >= 0)
+    if (st.reads >= 0 && st.writes >= 0 && st.average_latency >= 0)
         printf("  PASS: all counters non-negative\n");
     else
         printf("  FAIL: negative counter detected\n");
@@ -235,7 +235,7 @@ test_pa4_13(void)
 {
     printf("=== Test m: FCFS vs SSTF Latency Comparison ===\n");
 
-    struct diskstats fcfs_st, sstf_st;
+    struct vmstats fcfs_st, sstf_st;
     int pid = getpid2();
 
     // ------------------------------------------------------------------
@@ -251,61 +251,61 @@ test_pa4_13(void)
 
     memset(&fcfs_st, 0, sizeof(fcfs_st));
     // Parent accumulates its own stats from its own I/O
-    // We run the actual measurement in the parent process so getdiskstats
+    // We run the actual measurement in the parent process so getvmstats
     // reports THIS process's activity
     setdisksched(FCFS_13);
     strided_io_13();
-    if (getdiskstats(pid, &fcfs_st) != 0) {
-        printf("  FAIL: getdiskstats (FCFS) error\n");
+    if (getvmstats(pid, &fcfs_st) != 0) {
+        printf("  FAIL: getvmstats (FCFS) error\n");
         return;
     }
-    printf("  FCFS  -> reads=%d writes=%d avg_latency=%d.%d ticks\n",
+    printf("  FCFS  -> reads=%d writes=%d average_latency=%d.%d ticks\n",
            fcfs_st.reads, fcfs_st.writes,
-           fcfs_st.avg_latency / 100, fcfs_st.avg_latency % 100);
+           fcfs_st.average_latency / 100, fcfs_st.average_latency % 100);
 
     // ------------------------------------------------------------------
     printf("[2] Running workload under SSTF...\n");
     setdisksched(SSTF_13);
     strided_io_13();
 
-    // Note: getdiskstats returns cumulative stats; capture delta
-    struct diskstats after_sstf;
+    // Note: getvmstats returns cumulative stats; capture delta
+    struct vmstats after_sstf;
     memset(&after_sstf, 0, sizeof(after_sstf));
-    if (getdiskstats(pid, &after_sstf) != 0) {
-        printf("  FAIL: getdiskstats (SSTF) error\n");
+    if (getvmstats(pid, &after_sstf) != 0) {
+        printf("  FAIL: getvmstats (SSTF) error\n");
         return;
     }
     // sstf delta is after_sstf minus fcfs_st (same pid, cumulative)
     sstf_st.reads       = after_sstf.reads       - fcfs_st.reads;
     sstf_st.writes      = after_sstf.writes      - fcfs_st.writes;
-    // avg_latency is already an average, use the post value
-    sstf_st.avg_latency = after_sstf.avg_latency;
+    // average_latency is already an average, use the post value
+    sstf_st.average_latency = after_sstf.average_latency;
 
-    printf("  SSTF  -> reads=%d writes=%d avg_latency=%d.%d ticks\n",
+    printf("  SSTF  -> reads=%d writes=%d average_latency=%d.%d ticks\n",
            sstf_st.reads, sstf_st.writes,
-           sstf_st.avg_latency / 100, sstf_st.avg_latency % 100);
+           sstf_st.average_latency / 100, sstf_st.average_latency % 100);
 
     // ------------------------------------------------------------------
     printf("[3] Latency sanity checks\n");
-    if (fcfs_st.avg_latency > 0)
+    if (fcfs_st.average_latency > 0)
         printf("  PASS: FCFS latency > 0\n");
     else
         printf("  FAIL: FCFS latency == 0\n");
 
-    if (after_sstf.avg_latency > 0)
+    if (after_sstf.average_latency > 0)
         printf("  PASS: SSTF latency > 0\n");
     else
         printf("  FAIL: SSTF latency == 0\n");
 
     // SSTF average latency should not be worse than FCFS overall
     // (we compare final averages because running order affects head pos)
-    if (after_sstf.avg_latency <= fcfs_st.avg_latency)
-        printf("  PASS: SSTF avg_latency <= FCFS avg_latency"
+    if (after_sstf.average_latency <= fcfs_st.average_latency)
+        printf("  PASS: SSTF average_latency <= FCFS average_latency"
                " (%d.%d <= %d.%d)\n",
-               after_sstf.avg_latency/100, after_sstf.avg_latency%100,
-               fcfs_st.avg_latency/100, fcfs_st.avg_latency%100);
+               after_sstf.average_latency/100, after_sstf.average_latency%100,
+               fcfs_st.average_latency/100, fcfs_st.average_latency%100);
     else
-        printf("  NOTE: SSTF avg_latency > FCFS avg_latency — workload"
+        printf("  NOTE: SSTF average_latency > FCFS average_latency — workload"
                " may be too sequential; both policies functioning.\n");
 
     // ------------------------------------------------------------------
@@ -316,11 +316,11 @@ test_pa4_13(void)
     // ------------------------------------------------------------------
     printf("[5] Minimum latency >= rotational delay (C=7 ticks * 100)\n");
     // Each I/O must have at least C=7 ticks latency (stored *100)
-    if (fcfs_st.avg_latency >= 700)
-        printf("  PASS: FCFS avg_latency includes rotational delay\n");
+    if (fcfs_st.average_latency >= 700)
+        printf("  PASS: FCFS average_latency includes rotational delay\n");
     else
-        printf("  FAIL: FCFS avg_latency %d.%d < 7.00 ticks\n",
-               fcfs_st.avg_latency/100, fcfs_st.avg_latency%100);
+        printf("  FAIL: FCFS average_latency %d.%d < 7.00 ticks\n",
+               fcfs_st.average_latency/100, fcfs_st.average_latency%100);
 
     printf("=== Test m done ===\n");
 }

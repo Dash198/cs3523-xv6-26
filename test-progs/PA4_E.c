@@ -29,10 +29,10 @@ test_pa4_14(void)
 
     // Set RAID0 mode before any swap activity
     printf("[1] Setting RAID mode to RAID0\n");
-    if (setraidmode(RAID0_14) == 0)
-        printf("  PASS: setraidmode(RAID0) accepted\n");
+    if (setraidlevel(RAID0_14) == 0)
+        printf("  PASS: setraidlevel(RAID0) accepted\n");
     else {
-        printf("  FAIL: setraidmode(RAID0) rejected\n");
+        printf("  FAIL: setraidlevel(RAID0) rejected\n");
         return;
     }
 
@@ -80,14 +80,14 @@ test_pa4_14(void)
 
     // ------------------------------------------------------------------
     printf("[4] Disk I/O was generated\n");
-    struct diskstats st;
+    struct vmstats st;
     memset(&st, 0, sizeof(st));
-    if (getdiskstats(getpid2(), &st) != 0) {
-        printf("  FAIL: getdiskstats error\n");
+    if (getvmstats(getpid2(), &st) != 0) {
+        printf("  FAIL: getvmstats error\n");
         return;
     }
-    printf("  reads=%d writes=%d avg_latency=%d.%d ticks\n",
-           st.reads, st.writes, st.avg_latency/100, st.avg_latency%100);
+    printf("  reads=%d writes=%d average_latency=%d.%d ticks\n",
+           st.reads, st.writes, st.average_latency/100, st.average_latency%100);
 
     if (st.writes > 0)
         printf("  PASS: swap-out (writes) occurred\n");
@@ -150,20 +150,20 @@ test_pa4_15(void)
     printf("=== Test o: RAID 1 Mirroring Correctness ===\n");
 
     // ------------------------------------------------------------------
-    printf("[1] setfaileddisk: invalid values rejected\n");
-    if (setfaileddisk(-1) < 0)
+    printf("[1] faildisk: invalid values rejected\n");
+    if (faildisk(-1) < 0)
         printf("  PASS: disk -1 rejected\n");
     else
         printf("  FAIL: disk -1 accepted\n");
 
-    if (setfaileddisk(NDISKS_15) < 0)
+    if (faildisk(NDISKS_15) < 0)
         printf("  PASS: disk %d rejected (out of range)\n", NDISKS_15);
     else
         printf("  FAIL: disk %d accepted\n", NDISKS_15);
 
     // ------------------------------------------------------------------
-    printf("[2] setraidmode(RAID1)\n");
-    if (setraidmode(RAID1_15) == 0)
+    printf("[2] setraidlevel(RAID1)\n");
+    if (setraidlevel(RAID1_15) == 0)
         printf("  PASS: RAID1 set\n");
     else {
         printf("  FAIL: RAID1 rejected\n");
@@ -184,10 +184,10 @@ test_pa4_15(void)
 
     // ------------------------------------------------------------------
     printf("[4] RAID1 with disk 0 failed\n");
-    if (setfaileddisk(0) == 0)
+    if (faildisk(0) == 0)
         printf("  disk 0 marked failed\n");
     else {
-        printf("  FAIL: setfaileddisk(0) rejected\n");
+        printf("  FAIL: faildisk(0) rejected\n");
         return;
     }
 
@@ -199,10 +199,10 @@ test_pa4_15(void)
 
     // ------------------------------------------------------------------
     printf("[5] RAID1 with disk 1 failed\n");
-    if (setfaileddisk(1) == 0)
+    if (faildisk(1) == 0)
         printf("  disk 1 marked failed\n");
     else
-        printf("  FAIL: setfaileddisk(1) rejected\n");
+        printf("  FAIL: faildisk(1) rejected\n");
 
     errs = run_write_read_15(mem, SWAP_PAGES_15, 2);
     if (errs == 0)
@@ -213,18 +213,18 @@ test_pa4_15(void)
     // ------------------------------------------------------------------
     printf("[6] Disk I/O stats plausible for RAID1\n");
     // RAID1 writes each block twice (primary + mirror)
-    struct diskstats st;
+    struct vmstats st;
     memset(&st, 0, sizeof(st));
-    getdiskstats(getpid2(), &st);
-    printf("  reads=%d writes=%d avg_latency=%d.%d\n",
-           st.reads, st.writes, st.avg_latency/100, st.avg_latency%100);
+    getvmstats(getpid2(), &st);
+    printf("  reads=%d writes=%d average_latency=%d.%d\n",
+           st.reads, st.writes, st.average_latency/100, st.average_latency%100);
     if (st.writes > 0 && st.reads > 0)
         printf("  PASS: I/O recorded\n");
     else
         printf("  FAIL: missing reads or writes\n");
 
     // Restore: no failed disk (use disk 3 as sentinel — will be reset
-    // at next setraidmode call in later tests)
+    // at next setraidlevel call in later tests)
     printf("=== Test o done ===\n");
 }
 
@@ -249,8 +249,8 @@ test_pa4_16(void)
 {
     printf("=== Test p: RAID 5 Basic Correctness (No Failure) ===\n");
 
-    printf("[1] setraidmode(RAID5)\n");
-    if (setraidmode(RAID5_16) == 0)
+    printf("[1] setraidlevel(RAID5)\n");
+    if (setraidlevel(RAID5_16) == 0)
         printf("  PASS: RAID5 set\n");
     else {
         printf("  FAIL: RAID5 rejected\n");
@@ -311,11 +311,11 @@ test_pa4_16(void)
 
     // ------------------------------------------------------------------
     printf("[5] I/O stats\n");
-    struct diskstats st;
+    struct vmstats st;
     memset(&st, 0, sizeof(st));
-    getdiskstats(getpid2(), &st);
-    printf("  reads=%d writes=%d avg_latency=%d.%d ticks\n",
-           st.reads, st.writes, st.avg_latency/100, st.avg_latency%100);
+    getvmstats(getpid2(), &st);
+    printf("  reads=%d writes=%d average_latency=%d.%d ticks\n",
+           st.reads, st.writes, st.average_latency/100, st.average_latency%100);
 
     if (st.writes > 0 && st.reads > 0)
         printf("  PASS: I/O recorded under RAID5\n");
@@ -369,8 +369,8 @@ test_pa4_17(void)
 {
     printf("=== Test q: RAID 5 Reconstruction (One Failed Disk) ===\n");
 
-    printf("[1] setraidmode(RAID5)\n");
-    if (setraidmode(RAID5_17) == 0)
+    printf("[1] setraidlevel(RAID5)\n");
+    if (setraidlevel(RAID5_17) == 0)
         printf("  PASS: RAID5 set\n");
     else { printf("  FAIL: RAID5 rejected\n"); return; }
 
@@ -392,8 +392,8 @@ test_pa4_17(void)
     for (int d = 0; d < NDISKS_17; d++) {
         printf("[%d] Failing disk %d and verifying reconstruction\n", 3+d, d);
 
-        if (setfaileddisk(d) != 0) {
-            printf("  FAIL: setfaileddisk(%d) rejected\n", d);
+        if (faildisk(d) != 0) {
+            printf("  FAIL: faildisk(%d) rejected\n", d);
             continue;
         }
 
@@ -411,11 +411,11 @@ test_pa4_17(void)
     // We can't truly reset failed_disk through the API in the assignment,
     // but we switch RAID mode and back to reset internal state implicitly.
     // Alternatively we switch to RAID0 and back:
-    setraidmode(0);   // RAID0 — resets failed_disk context
-    setraidmode(RAID5_17);
-    // setfaileddisk is not available with value -1 per spec (rejected)
+    setraidlevel(0);   // RAID0 — resets failed_disk context
+    setraidlevel(RAID5_17);
+    // faildisk is not available with value -1 per spec (rejected)
     // So we test with disk 3 failed (last disk) and then no explicit reset
-    setfaileddisk(3);
+    faildisk(3);
     errs = write_verify_17(mem, SWAP_PAGES_17, 99, 3);
     if (errs == 0)
         printf("  PASS: disk 3 failed — data still correct\n");
@@ -424,11 +424,11 @@ test_pa4_17(void)
 
     // ------------------------------------------------------------------
     printf("[8] I/O stats after reconstruction tests\n");
-    struct diskstats st;
+    struct vmstats st;
     memset(&st, 0, sizeof(st));
-    getdiskstats(getpid2(), &st);
-    printf("  reads=%d writes=%d avg_latency=%d.%d ticks\n",
-           st.reads, st.writes, st.avg_latency/100, st.avg_latency%100);
+    getvmstats(getpid2(), &st);
+    printf("  reads=%d writes=%d average_latency=%d.%d ticks\n",
+           st.reads, st.writes, st.average_latency/100, st.average_latency%100);
     if (st.reads > 0 && st.writes > 0)
         printf("  PASS: I/O correctly tracked through reconstruction\n");
     else

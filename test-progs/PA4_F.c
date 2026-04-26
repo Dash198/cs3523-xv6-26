@@ -35,28 +35,28 @@ test_pa4_18(void)
     printf("=== Test r: Scheduler-Aware Disk Scheduling ===\n");
 
     setdisksched(SSTF_18);
-    setraidmode(0); // RAID0 for simplicity
+    setraidlevel(0); // RAID0 for simplicity
 
     // ------------------------------------------------------------------
     printf("[1] Per-process stat isolation\n");
     // Fork a child that does disk I/O; parent's stats should not include it
-    struct diskstats parent_before, parent_after;
+    struct vmstats parent_before, parent_after;
     memset(&parent_before, 0, sizeof(parent_before));
     memset(&parent_after, 0, sizeof(parent_after));
     int ppid = getpid2();
-    getdiskstats(ppid, &parent_before);
+    getvmstats(ppid, &parent_before);
 
     int child = fork();
     if (child == 0) {
         // Child does swap I/O
-        setraidmode(0);
+        setraidlevel(0);
         setdisksched(SSTF_18);
         do_swap_work_18();
         exit(0);
     }
     wait(0);
 
-    getdiskstats(ppid, &parent_after);
+    getvmstats(ppid, &parent_after);
     int delta_reads  = parent_after.reads  - parent_before.reads;
     int delta_writes = parent_after.writes - parent_before.writes;
     printf("  parent delta: reads=%d writes=%d\n", delta_reads, delta_writes);
@@ -71,13 +71,13 @@ test_pa4_18(void)
     // Do many syscalls to stay interactive
     for (int i = 0; i < 5000; i++) getpid(); // keep del_s high
     do_swap_work_18();
-    struct diskstats hi_st;
+    struct vmstats hi_st;
     memset(&hi_st, 0, sizeof(hi_st));
-    getdiskstats(ppid, &hi_st);
+    getvmstats(ppid, &hi_st);
     printf("  HI-priority: reads=%d writes=%d latency=%d.%d\n",
            hi_st.reads - parent_after.reads,
            hi_st.writes - parent_after.writes,
-           hi_st.avg_latency/100, hi_st.avg_latency%100);
+           hi_st.average_latency/100, hi_st.average_latency%100);
 
     // ------------------------------------------------------------------
     printf("[3] Low-priority process disk I/O\n");
@@ -89,18 +89,18 @@ test_pa4_18(void)
         // Spin to get demoted in MLFQ
         volatile int x = 0;
         for (int i = 0; i < SPIN_ITERS; i++) x++;
-        setraidmode(0);
+        setraidlevel(0);
         setdisksched(SSTF_18);
         do_swap_work_18();
-        struct diskstats lo_st;
+        struct vmstats lo_st;
         memset(&lo_st, 0, sizeof(lo_st));
-        getdiskstats(getpid2(), &lo_st);
+        getvmstats(getpid2(), &lo_st);
         write(lo_pipe[1], &lo_st, sizeof(lo_st));
         close(lo_pipe[1]);
         exit(0);
     }
     close(lo_pipe[1]);
-    struct diskstats lo_st;
+    struct vmstats lo_st;
     memset(&lo_st, 0, sizeof(lo_st));
     read(lo_pipe[0], &lo_st, sizeof(lo_st));
     close(lo_pipe[0]);
@@ -108,7 +108,7 @@ test_pa4_18(void)
 
     printf("  LO-priority: reads=%d writes=%d latency=%d.%d\n",
            lo_st.reads, lo_st.writes,
-           lo_st.avg_latency/100, lo_st.avg_latency%100);
+           lo_st.average_latency/100, lo_st.average_latency%100);
 
     if (lo_st.reads > 0 && lo_st.writes > 0)
         printf("  PASS: low-priority process performed disk I/O\n");
@@ -137,9 +137,9 @@ test_pa4_18(void)
 
     // ------------------------------------------------------------------
     printf("[5] Stats monotonically increase\n");
-    struct diskstats final_st;
+    struct vmstats final_st;
     memset(&final_st, 0, sizeof(final_st));
-    getdiskstats(ppid, &final_st);
+    getvmstats(ppid, &final_st);
     if (final_st.reads >= hi_st.reads && final_st.writes >= hi_st.writes)
         printf("  PASS: stats only increase\n");
     else
@@ -180,7 +180,7 @@ test_pa4_19(void)
 {
     printf("=== Test s: Disk Latency Model Verification ===\n");
 
-    setraidmode(0); // RAID0 — simplest path
+    setraidlevel(0); // RAID0 — simplest path
     int pid = getpid2();
 
     char *mem = sbrk(SWAP_PAGES_19 * PGSIZE_19);
@@ -193,34 +193,34 @@ test_pa4_19(void)
     setdisksched(FCFS_19);
     seq_access_19(mem, SWAP_PAGES_19, 0);
 
-    struct diskstats st1;
+    struct vmstats st1;
     memset(&st1, 0, sizeof(st1));
-    getdiskstats(pid, &st1);
+    getvmstats(pid, &st1);
     printf("  Sequential FCFS: reads=%d writes=%d avg_lat=%d.%d\n",
-           st1.reads, st1.writes, st1.avg_latency/100, st1.avg_latency%100);
+           st1.reads, st1.writes, st1.average_latency/100, st1.average_latency%100);
 
-    if (st1.avg_latency >= ROTATIONAL_C * 100)
-        printf("  PASS: avg_latency >= C*100 (%d >= %d)\n",
-               st1.avg_latency, ROTATIONAL_C * 100);
+    if (st1.average_latency >= ROTATIONAL_C * 100)
+        printf("  PASS: average_latency >= C*100 (%d >= %d)\n",
+               st1.average_latency, ROTATIONAL_C * 100);
     else
-        printf("  FAIL: avg_latency %d < minimum %d\n",
-               st1.avg_latency, ROTATIONAL_C * 100);
+        printf("  FAIL: average_latency %d < minimum %d\n",
+               st1.average_latency, ROTATIONAL_C * 100);
 
     // ------------------------------------------------------------------
-    printf("[2] Scattered access should yield higher avg_latency than sequential\n");
+    printf("[2] Scattered access should yield higher average_latency than sequential\n");
 
     setdisksched(SSTF_19);
     scattered_access_19(mem, SWAP_PAGES_19, 1);
 
-    struct diskstats st2;
+    struct vmstats st2;
     memset(&st2, 0, sizeof(st2));
-    getdiskstats(pid, &st2);
+    getvmstats(pid, &st2);
     printf("  Scattered SSTF: reads=%d writes=%d avg_lat=%d.%d\n",
-           st2.reads, st2.writes, st2.avg_latency/100, st2.avg_latency%100);
+           st2.reads, st2.writes, st2.average_latency/100, st2.average_latency%100);
 
-    // avg_latency after scatter >= after sequential (cumulative average)
+    // average_latency after scatter >= after sequential (cumulative average)
     // This is a soft check because avg is cumulative over all ops
-    if (st2.avg_latency >= st1.avg_latency)
+    if (st2.average_latency >= st1.average_latency)
         printf("  PASS: cumulative latency did not drop\n");
     else
         printf("  NOTE: cumulative avg dropped — SSTF reordered effectively\n");
@@ -228,31 +228,31 @@ test_pa4_19(void)
     // ------------------------------------------------------------------
     printf("[3] SSTF reduces latency vs FCFS on same workload\n");
     // Run identical scattered workload under both policies, compare
-    struct diskstats before_fcfs, after_fcfs, before_sstf, after_sstf;
+    struct vmstats before_fcfs, after_fcfs, before_sstf, after_sstf;
 
     setdisksched(FCFS_19);
-    getdiskstats(pid, &before_fcfs);
+    getvmstats(pid, &before_fcfs);
     scattered_access_19(mem, SWAP_PAGES_19, 2);
-    getdiskstats(pid, &after_fcfs);
-    int fcfs_lat = after_fcfs.avg_latency;
+    getvmstats(pid, &after_fcfs);
+    int fcfs_lat = after_fcfs.average_latency;
 
     setdisksched(SSTF_19);
-    getdiskstats(pid, &before_sstf);
+    getvmstats(pid, &before_sstf);
     scattered_access_19(mem, SWAP_PAGES_19, 3);
-    getdiskstats(pid, &after_sstf);
-    int sstf_lat = after_sstf.avg_latency;
+    getvmstats(pid, &after_sstf);
+    int sstf_lat = after_sstf.average_latency;
 
     printf("  FCFS avg_lat=%d.%d  SSTF avg_lat=%d.%d\n",
            fcfs_lat/100, fcfs_lat%100, sstf_lat/100, sstf_lat%100);
 
     if (sstf_lat <= fcfs_lat)
-        printf("  PASS: SSTF avg_latency <= FCFS avg_latency\n");
+        printf("  PASS: SSTF average_latency <= FCFS average_latency\n");
     else
         printf("  NOTE: SSTF avg higher (cumulative includes prior FCFS ops)\n");
 
     // ------------------------------------------------------------------
     printf("[4] Latency > 0 for all ops\n");
-    if (after_sstf.avg_latency > 0 && after_fcfs.avg_latency > 0)
+    if (after_sstf.average_latency > 0 && after_fcfs.average_latency > 0)
         printf("  PASS: both policies record positive latency\n");
     else
         printf("  FAIL: zero latency detected\n");
@@ -290,7 +290,7 @@ typedef struct {
     int pid;
     int reads;
     int writes;
-    int avg_latency;
+    int average_latency;
     int errors;
 } ChildReport_20;
 
@@ -302,18 +302,18 @@ test_pa4_20(void)
     printf("=== Test t: RAID Mode Switching + Multi-Process Stats ===\n");
 
     // ------------------------------------------------------------------
-    printf("[1] setraidmode: invalid values rejected\n");
-    if (setraidmode(99) < 0)
+    printf("[1] setraidlevel: invalid values rejected\n");
+    if (setraidlevel(99) < 0)
         printf("  PASS: mode 99 rejected\n");
     else
         printf("  FAIL: mode 99 accepted\n");
 
-    if (setraidmode(-1) < 0)
+    if (setraidlevel(-1) < 0)
         printf("  PASS: mode -1 rejected\n");
     else
         printf("  FAIL: mode -1 accepted\n");
 
-    if (setraidmode(2) < 0)
+    if (setraidlevel(2) < 0)
         printf("  PASS: mode 2 rejected\n");
     else
         printf("  FAIL: mode 2 accepted\n");
@@ -323,7 +323,7 @@ test_pa4_20(void)
     int modes[] = {RAID0_20, RAID1_20, RAID5_20, RAID0_20};
     char *mnames[] = {"RAID0", "RAID1", "RAID5", "RAID0"};
     for (int m = 0; m < 4; m++) {
-        if (setraidmode(modes[m]) == 0)
+        if (setraidlevel(modes[m]) == 0)
             printf("  PASS: switched to %s\n", mnames[m]);
         else
             printf("  FAIL: could not switch to %s\n", mnames[m]);
@@ -352,7 +352,7 @@ test_pa4_20(void)
             rep.pid    = getpid2();
             rep.errors = 0;
 
-            setraidmode(child_modes[c]);
+            setraidlevel(child_modes[c]);
             setdisksched(FCFS_20);
 
             char *mem = sbrk(SWAP_PAGES_20 * PGSIZE_20);
@@ -375,21 +375,21 @@ test_pa4_20(void)
             }
 
         done_20:;
-            struct diskstats st;
+            struct vmstats st;
             memset(&st, 0, sizeof(st));
-            getdiskstats(rep.pid, &st);
+            getvmstats(rep.pid, &st);
             rep.reads       = st.reads;
             rep.writes      = st.writes;
-            rep.avg_latency = st.avg_latency;
+            rep.average_latency = st.average_latency;
 
             write(pipefd[c][1], &rep, sizeof(rep));
             close(pipefd[c][1]);
             exit(rep.errors != 0);
         }
-        
+
         // PARENT: Wait for the specific child to finish to prevent RAID mode race conditions
         wait(0);
-        
+
         // Collect the report for this child immediately
         close(pipefd[c][1]);
         read(pipefd[c][0], &reports[c], sizeof(reports[c]));
@@ -404,7 +404,7 @@ test_pa4_20(void)
                " latency=%d.%d errors=%d\n",
                c, mnames[c], r->pid,
                r->reads, r->writes,
-               r->avg_latency/100, r->avg_latency%100,
+               r->average_latency/100, r->average_latency%100,
                r->errors);
         if (r->errors != 0)   all_ok = 0;
         if (r->reads  == 0)  { printf("  FAIL: child %d no reads\n",  c); all_ok = 0; }
@@ -452,12 +452,12 @@ test_pa4_21(void)
 {
     printf("=== Test u: Disk-Backed Swap End-to-End Stress ===\n");
 
-    setraidmode(RAID0_21);
+    setraidlevel(RAID0_21);
     setdisksched(SSTF_21);
 
     int pid = getpid2();
     struct vmstats vm_before, vm_after;
-    struct diskstats dk_before, dk_after;
+    struct vmstats dk_before, dk_after;
     memset(&vm_before, 0, sizeof(vm_before));
     memset(&dk_before, 0, sizeof(dk_before));
 
@@ -465,7 +465,7 @@ test_pa4_21(void)
     if (mem == (char *)-1) { printf("  FAIL: sbrk\n"); return; }
 
     getvmstats(pid, &vm_before);
-    getdiskstats(pid, &dk_before);
+    getvmstats(pid, &dk_before);
 
     // ------------------------------------------------------------------
     printf("[1] Multi-pass write+read over %d pages\n", NUM_PAGES_21);
@@ -495,7 +495,7 @@ test_pa4_21(void)
     }
 
     getvmstats(pid, &vm_after);
-    getdiskstats(pid, &dk_after);
+    getvmstats(pid, &dk_after);
 
     printf("\n  VM stats: faults=%d evicted=%d sin=%d sout=%d res=%d\n",
            vm_after.page_faults, vm_after.pages_evicted,
@@ -503,7 +503,7 @@ test_pa4_21(void)
            vm_after.resident_pages);
     printf("  Disk stats: reads=%d writes=%d latency=%d.%d\n",
            dk_after.reads, dk_after.writes,
-           dk_after.avg_latency/100, dk_after.avg_latency%100);
+           dk_after.average_latency/100, dk_after.average_latency%100);
 
     // ------------------------------------------------------------------
     printf("[2] Evictions and swap I/O occurred\n");
@@ -575,7 +575,7 @@ test_pa4_21(void)
     // — kernel must free their swap slots
     int cleanup_child = fork();
     if (cleanup_child == 0) {
-        setraidmode(RAID0_21);
+        setraidlevel(RAID0_21);
         setdisksched(SSTF_21);
         char *extra = sbrk(FRAME_LIMIT_21 * 2 * PGSIZE_21);
         if (extra != (char *)-1) {
@@ -622,7 +622,7 @@ test_pa4_22(void)
 {
     printf("=== Test v: SSTF Head Position Tracking ===\n");
 
-    setraidmode(RAID0_22);
+    setraidlevel(RAID0_22);
     int pid = getpid2();
 
     char *mem = sbrk(SWAP_PAGES_22 * PGSIZE_22);
@@ -633,28 +633,28 @@ test_pa4_22(void)
     setdisksched(FCFS_22);
     interleaved_access_22(mem, SWAP_PAGES_22, 0);
 
-    struct diskstats st_fcfs;
+    struct vmstats st_fcfs;
     memset(&st_fcfs, 0, sizeof(st_fcfs));
-    getdiskstats(pid, &st_fcfs);
+    getvmstats(pid, &st_fcfs);
     printf("  FCFS: reads=%d writes=%d avg_lat=%d.%d ticks\n",
            st_fcfs.reads, st_fcfs.writes,
-           st_fcfs.avg_latency/100, st_fcfs.avg_latency%100);
+           st_fcfs.average_latency/100, st_fcfs.average_latency%100);
 
     // ------------------------------------------------------------------
     printf("[2] SSTF same interleaved workload (lower seek distance)\n");
     setdisksched(SSTF_22);
     interleaved_access_22(mem, SWAP_PAGES_22, 1);
 
-    struct diskstats st_sstf;
+    struct vmstats st_sstf;
     memset(&st_sstf, 0, sizeof(st_sstf));
-    getdiskstats(pid, &st_sstf);
+    getvmstats(pid, &st_sstf);
     printf("  SSTF (cumulative): reads=%d writes=%d avg_lat=%d.%d ticks\n",
            st_sstf.reads, st_sstf.writes,
-           st_sstf.avg_latency/100, st_sstf.avg_latency%100);
+           st_sstf.average_latency/100, st_sstf.average_latency%100);
 
     // ------------------------------------------------------------------
-    printf("[3] SSTF avg_latency not worse than FCFS\n");
-    if (st_sstf.avg_latency <= st_fcfs.avg_latency)
+    printf("[3] SSTF average_latency not worse than FCFS\n");
+    if (st_sstf.average_latency <= st_fcfs.average_latency)
         printf("  PASS: SSTF avg_lat <= FCFS avg_lat\n");
     else
         printf("  NOTE: SSTF cumulative higher — head already moved by FCFS pass\n");
@@ -687,16 +687,16 @@ test_pa4_22(void)
         printf("  FAIL: %d errors\n", errs);
 
     // ------------------------------------------------------------------
-    printf("[6] avg_latency always >= rotational delay (700 in 100x units)\n");
-    if (st_fcfs.avg_latency >= 700)
+    printf("[6] average_latency always >= rotational delay (700 in 100x units)\n");
+    if (st_fcfs.average_latency >= 700)
         printf("  PASS: FCFS latency >= C*100\n");
     else
-        printf("  FAIL: FCFS latency %d < 700\n", st_fcfs.avg_latency);
+        printf("  FAIL: FCFS latency %d < 700\n", st_fcfs.average_latency);
 
-    if (st_sstf.avg_latency >= 700)
+    if (st_sstf.average_latency >= 700)
         printf("  PASS: SSTF latency >= C*100\n");
     else
-        printf("  FAIL: SSTF latency %d < 700\n", st_sstf.avg_latency);
+        printf("  FAIL: SSTF latency %d < 700\n", st_sstf.average_latency);
 
     printf("=== Test v done ===\n");
 }

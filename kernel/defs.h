@@ -98,9 +98,16 @@ void            userinit(void);
 int             kwait(uint64);
 void            wakeup(void*);
 void            yield(void);
+void            check_ticks(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+int get_children(int pid);
+int get_child_syscall(int pid);
+int getmlfqinfo(int pid, uint64 addr);
+void boost(void);
+int getvmstats(int pid, uint64 addr);
+struct proc* get_proc_by_pid(int pid);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -138,6 +145,7 @@ void            syscall();
 
 // trap.c
 extern uint     ticks;
+extern uint     last_boost;
 void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
@@ -158,7 +166,8 @@ int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
 uint64          uvmalloc(pagetable_t, uint64, uint64, int);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
-int             uvmcopy(pagetable_t, pagetable_t, uint64);
+int             uvmcopy(pagetable_t, pagetable_t, uint64, struct proc*);
+
 void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
@@ -170,6 +179,8 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             ismapped(pagetable_t, uint64);
 uint64          vmfault(pagetable_t, uint64, int);
 
+void            swap_init(void);
+
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);
@@ -180,6 +191,8 @@ void            plic_complete(int);
 void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
-
+extern int disk_sched_policy;
+extern int raid_level;
+extern int disk_failed;
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
